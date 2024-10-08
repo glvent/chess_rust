@@ -1,45 +1,101 @@
 // components/Chessboard.tsx
-'use client';
 
-import { useState } from 'react';
-import Square from './Square';
-import Piece from './Piece';
+"use client";
+
+import { useState, useContext, useEffect } from "react";
+import Square from "./Square";
+import Piece from "./Piece";
+import { WebSocketCtx } from "./contexts/WebSocketContext";
 
 interface PieceData {
   piece_type: string;
-  color: 'w' | 'b';
+  color: "w" | "b";
+  position: number; // 0 to 63
 }
 
-// Initial board state
-const initialBoardState: (PieceData | null)[][] = [
-  [
-    { piece_type: 'r', color: 'b' },
-    { piece_type: 'n', color: 'b' },
-    { piece_type: 'b', color: 'b' },
-    { piece_type: 'q', color: 'b' },
-    { piece_type: 'k', color: 'b' },
-    { piece_type: 'b', color: 'b' },
-    { piece_type: 'n', color: 'b' },
-    { piece_type: 'r', color: 'b' },
-  ],
-  Array(8).fill({ piece_type: 'p', color: 'b' }),
-  ...Array(4).fill(Array(8).fill(null)),
-  Array(8).fill({ piece_type: 'p', color: 'w' }),
-  [
-    { piece_type: 'r', color: 'w' },
-    { piece_type: 'n', color: 'w' },
-    { piece_type: 'b', color: 'w' },
-    { piece_type: 'q', color: 'w' },
-    { piece_type: 'k', color: 'w' },
-    { piece_type: 'b', color: 'w' },
-    { piece_type: 'n', color: 'w' },
-    { piece_type: 'r', color: 'w' },
-  ],
-];
-
 const Chessboard: React.FC = () => {
-  const [boardState] = useState<(PieceData | null)[][]>(initialBoardState);
+  const [pieces, setPieces] = useState<PieceData[] | null>(null);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [selectedPiece, setSelectedPiece] = useState<PieceData | null>(null);
+
+  const { ws } = useContext(WebSocketCtx);
+
+  useEffect(() => {
+    if (!ws) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data);
+
+        if (message.type === "init" || message.type === "update") {
+          setPieces(message.data);
+          console.log(message.data);
+        }
+      } catch (error) {
+        console.error("Error parsing message:", error);
+      }
+    };
+
+    ws.addEventListener("message", handleMessage);
+
+    return () => {
+      ws.removeEventListener("message", handleMessage);
+    };
+  }, [ws]);
+
+  if (!pieces) {
+    return <div>Loading...</div>;
+  }
+
+  const boardState: (PieceData | null)[][] = Array.from({ length: 8 }, () =>
+    Array(8).fill(null)
+  );
+
+  pieces.forEach((piece) => {
+    const row = 7 - Math.floor(piece.position / 8); // invert row idx
+    const col = piece.position % 8;
+    boardState[row][col] = piece;
+  });
+
+  const handlePieceMove = (fromOrToPosition: number, toPosition?: number) => {
+    console.log(`fromOrToPosition: ${fromOrToPosition}, toPosition: ${toPosition}`);
+    if (fromOrToPosition == selectedPiece?.position) {
+      setSelectedPiece(null);
+      return;
+    }
+  
+    if (toPosition !== undefined) {
+      const moveMessage = {
+        type: 'move',
+        data: {
+          from: fromOrToPosition,
+          to: toPosition,
+        },
+      };
+      ws?.send(JSON.stringify(moveMessage));
+      setSelectedPiece(null);
+    } else if (selectedPiece) {
+      const fromPosition = selectedPiece.position;
+      const toPosition = fromOrToPosition;
+      const moveMessage = {
+        type: 'move',
+        data: {
+          from: fromPosition,
+          to: toPosition,
+        },
+      };
+      ws?.send(JSON.stringify(moveMessage));
+      setSelectedPiece(null);
+    } else {
+      const piece = pieces.find((p) => p.position === fromOrToPosition);
+      if (piece) {
+        setSelectedPiece(piece);
+      } else {
+        setSelectedPiece(null);
+      }
+    }
+  };
+  
 
   const renderSquare = (row: number, col: number) => {
     const actualRow = isFlipped ? 7 - row : row;
@@ -48,6 +104,10 @@ const Chessboard: React.FC = () => {
     const isBlack = (actualRow + actualCol) % 2 === 1;
     const piece = boardState[actualRow][actualCol];
 
+    const position = (7 - actualRow) * 8 + actualCol;
+
+    const isSelected = selectedPiece?.position === position;
+
     return (
       <Square
         key={`${row}-${col}`}
@@ -55,17 +115,23 @@ const Chessboard: React.FC = () => {
         isFlipped={isFlipped}
         row={actualRow}
         col={actualCol}
+        onPieceMove={handlePieceMove}
+        isSelected={isSelected}
       >
-        {piece && <Piece type={piece.piece_type} color={piece.color} />}
+        {piece && (
+          <Piece
+            type={piece.piece_type}
+            color={piece.color}
+            position={piece.position}
+          />
+        )}
       </Square>
     );
   };
 
   const board = [];
-  // Do not reverse the rows
   for (let row = 0; row < 8; row++) {
     const squares = [];
-    // Do not reverse the squares
     for (let col = 0; col < 8; col++) {
       squares.push(renderSquare(row, col));
     }
@@ -75,6 +141,7 @@ const Chessboard: React.FC = () => {
       </div>
     );
   }
+
   return (
     <div className="flex flex-col items-center">
       <div>{board}</div>

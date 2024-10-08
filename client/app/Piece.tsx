@@ -1,18 +1,39 @@
-"use client"
+"use client";
 
-import Image from "next/image";
+import React, { useRef } from 'react';
+import Image from 'next/image';
+import { useDrag } from 'react-dnd';
 
 interface PieceProps {
   type: string;
   color: 'w' | 'b';
+  position: number;
 }
 
-const Piece: React.FC<PieceProps> = ({ type, color }) => {
-  const pieceAsset = `/assets/${color + type}.svg`;
+const Piece: React.FC<PieceProps> = ({ type, color, position }) => {
+  const pieceAsset = `/assets/${color}${type}.svg`;
+
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const [{ isDragging }, drag] = useDrag({
+    type: 'piece',
+    item: { type, color, position },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  });
+
+  drag(ref);
 
   return (
-    <span>
-      <img src={pieceAsset} width={48} height={48} alt={color + type} />
+    <span
+      ref={ref}
+      style={{
+        opacity: isDragging ? 0.5 : 1,
+        cursor: 'move',
+      }}
+    >
+      <Image src={pieceAsset} width={64} height={64} alt={`${color}${type}`} />
     </span>
   );
 };
