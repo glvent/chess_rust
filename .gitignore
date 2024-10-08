@@ -1,0 +1,33 @@
+# Node.js dependencies
+client/node_modules/
+client/.next/
+client/out/
+
+# Rust build artifacts
+server/target/
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Visual Studio Code settings
+.vscode/
+
+# MacOS files
+._*
+
+# Build directories
+dist/
+build/
